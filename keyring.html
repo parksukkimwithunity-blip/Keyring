@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Acrylic Keyring</title>
+<style>
+:root{--bg:#f6f5f2;--fg:#1d1d1d;--card:#fff;--line:#d9d6cf}
+@media (prefers-color-scheme:dark){:root{--bg:#171717;--fg:#eee;--card:#222;--line:#3a3a3a}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;padding:16px}
+.wrap{max-width:520px;margin:0 auto}h1{font-size:18px;margin:4px 0 12px}
+canvas{width:100%;height:auto;border:1px solid var(--line);border-radius:12px;display:block;background:conic-gradient(#ccc 25%,#fff 0 50%,#ccc 0 75%,#fff 0) 0 0/20px 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:12px}
+label{display:block;font-size:13px;margin-bottom:10px}input,select{display:block;width:100%;margin-top:4px;font-size:15px}
+select{padding:9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--fg)}
+.row{display:flex;gap:8px}.row label{flex:1}
+button{width:100%;padding:12px;border:0;border-radius:10px;background:var(--fg);color:var(--bg);font-size:15px;font-weight:600}
+.tip{font-size:12px;opacity:.7;line-height:1.5;margin-top:8px}
+</style></head><body><div class="wrap">
+<h1>Acrylic Keyring</h1>
+<canvas id="c" width="900" height="720"></canvas>
+<div class="card">
+<div class="row"><label>흔들리는 속도<select id="T"><option value="2">빠르게 (2초)</option><option value="3" selected>보통 (3초)</option><option value="4">느리게 (4초)</option></select></label>
+<label>흔들림 세기<select id="k"><option value="0.6">약하게</option><option value="1" selected>보통</option><option value="1.6">세게</option></select></label></div>
+<div id="lay"></div>
+<button id="mk">투명 배경 GIF로 저장</button>
+<div id="msg" class="tip"></div>
+<div class="tip">그림은 배경이 투명한 PNG를 쓰면 흰 테두리가 캐릭터 모양을 따라 생겨요. 한 번 흔들리는 길이로 저장돼서 끊김 없이 반복돼요. 체크무늬 부분이 투명이에요.</div>
+</div></div>
+<script>
+var $=function(i){return document.getElementById(i)},g=$("c").getContext("2d"),W0=900,H0=720,ims=[null,null],assets=[null,null],elapsed=0,last=null,busy=false,TP=Math.PI*2,tmp=document.createElement("canvas");
+[0,1].forEach(function(i){
+  var d=document.createElement("div");d.className="card";
+  d.innerHTML='<b style="font-size:13px">키링 '+(i+1)+' (투명 배경 PNG)</b><input type="file" id="f'+i+'" accept="image/*" style="margin:6px 0 10px">'
+   +'<label>크기<input type="range" id="h'+i+'" min="200" max="480" value="440"></label>'
+   +'<label>좌우<input type="range" id="x'+i+'" min="-300" max="300" value="0"></label>';
+  $("lay").appendChild(d);
+  $("f"+i).addEventListener("change",function(e){var f=e.target.files[0];if(!f)return;var im=new Image();im.onload=function(){ims[i]=im};im.src=URL.createObjectURL(f)});
+});
+function build(im,h){
+  var w=im.width*h/im.height,pad=44,top=110,cw=Math.ceil(w+pad*2),ch=Math.ceil(h+top+pad);
+  function mk(){var q=document.createElement("canvas");q.width=cw;q.height=ch;return q}
+  var a=mk(),x=a.getContext("2d"),s=mk(),sx=s.getContext("2d",{willReadFrequently:true});sx.drawImage(im,pad,top,w,h);
+  var d=sx.getImageData(0,0,cw,ch).data,t0=-1,y,xx;
+  for(y=0;y<ch&&t0<0;y++)for(xx=0;xx<cw;xx+=2)if(d[(y*cw+xx)*4+3]>40){t0=y;break}
+  if(t0<0)t0=top;
+  var sm=0,sc=0;for(y=t0;y<t0+14&&y<ch;y++)for(xx=0;xx<cw;xx++)if(d[(y*cw+xx)*4+3]>40){sm+=xx;sc++}
+  var tx=sc?sm/sc:cw/2,ty=t0-4;
+  function sil(col){var q=mk(),z=q.getContext("2d");z.drawImage(s,0,0);z.globalCompositeOperation="source-in";z.fillStyle=col;z.fillRect(0,0,cw,ch);return q}
+  var gr=sil("#c9ced8"),wh=sil("#ffffff");
+  function ring(src,r){for(var k=0;k<24;k++){var an=k/24*TP;x.drawImage(src,Math.cos(an)*r,Math.sin(an)*r)}}
+  ring(gr,20);ring(gr,12);ring(gr,5);ring(wh,15);ring(wh,8);ring(wh,3);x.drawImage(wh,0,0);
+  x.fillStyle="#c9ced8";x.beginPath();x.arc(tx,ty,42,0,TP);x.fill();x.fillStyle="#fff";x.beginPath();x.arc(tx,ty,37,0,TP);x.fill();
+  x.globalCompositeOperation="destination-out";x.beginPath();x.arc(tx,ty-4,15,0,TP);x.fill();x.globalCompositeOperation="source-over";
+  x.drawImage(im,pad,top,w,h);
+  return{im:im,h:h,c:a,hx:tx,hy:ty-4};
+}
+function scene(c,t){
+  var T=+$("T").value,K=+$("k").value,P=TP*t/T,list=[];
+  ims.forEach(function(im,i){if(!im)return;var h=+$("h"+i).value;if(!assets[i]||assets[i].im!==im||assets[i].h!==h)assets[i]=build(im,h);list.push(i)});
+  list.forEach(function(i,n){
+    var A=assets[i],ax=(list.length===1?450:(n?610:290))+(+$("x"+i).value),ay=70,ph=n*1.7,th=Math.sin(P+ph)*6*K*Math.PI/180,phi=Math.sin(P+ph-.9)*9*K*Math.PI/180;
+    c.save();c.strokeStyle="#9aa1ad";c.lineWidth=6;c.beginPath();c.arc(ax,ay,14,0,TP);c.stroke();
+    c.translate(ax,ay);c.rotate(th);c.lineWidth=5;
+    for(var k=0;k<5;k++){var y=k*22+11;c.beginPath();if(k%2===0)c.ellipse(0,y,7,13,0,0,TP);else{c.moveTo(0,y-9);c.lineTo(0,y+9)}c.stroke()}
+    c.translate(0,110);c.rotate(phi);
+    c.strokeStyle="#aab0bc";c.lineWidth=7;c.beginPath();c.arc(0,0,24,0,TP);c.stroke();c.strokeStyle="rgba(255,255,255,.8)";c.lineWidth=2;c.beginPath();c.arc(-2,-2,24,3.6,5.2);c.stroke();
+    var w=A.c.width,h=A.c.height;if(tmp.width!==w||tmp.height!==h){tmp.width=w;tmp.height=h}
+    var z=tmp.getContext("2d");z.globalCompositeOperation="source-over";z.clearRect(0,0,w,h);z.drawImage(A.c,0,0);z.globalCompositeOperation="source-atop";
+    var p=(t/T%1)*(w+400)-200,sg=z.createLinearGradient(p-80,0,p+80,160);sg.addColorStop(0,"rgba(255,255,255,0)");sg.addColorStop(.5,"rgba(255,255,255,.55)");sg.addColorStop(1,"rgba(255,255,255,0)");z.fillStyle=sg;z.fillRect(0,0,w,h);z.globalCompositeOperation="source-over";
+    c.drawImage(tmp,-A.hx,-A.hy);c.restore();
+  });
+}
+function loop(ts){if(!busy){if(last!==null)elapsed+=(ts-last)/1000;last=ts;g.clearRect(0,0,W0,H0);scene(g,elapsed)}requestAnimationFrame(loop)}
+requestAnimationFrame(loop);
+function lzw(ix){
+  var out=[],bits=0,nb=0,cs=9,next=258,dict=new Map();
+  function emit(c){bits|=c<<nb;nb+=cs;while(nb>=8){out.push(bits&255);bits>>>=8;nb-=8}}
+  emit(256);var pre=ix[0];
+  for(var i=1;i<ix.length;i++){
+    var k=ix[i],key=(pre<<8)|k,v=dict.get(key);
+    if(v!==undefined){pre=v}
+    else{emit(pre);
+      if(next<4096){dict.set(key,next);if(next===(1<<cs))cs++;next++}
+      else{emit(256);dict.clear();cs=9;next=258}
+      pre=k}
+  }
+  emit(pre);emit(257);if(nb>0)out.push(bits&255);return out;
+}
+function medianCut(hist,N){
+  var cols=[];hist.forEach(function(c,k){cols.push({r:(k>>16)&255,g:(k>>8)&255,b:k&255,n:c})});
+  var boxes=[cols],CH=["r","g","b"];
+  while(boxes.length<N){
+    var bi=-1,bro=0,bch="r";
+    boxes.forEach(function(bx,i){if(bx.length<2)return;var mn={r:255,g:255,b:255},mx={r:0,g:0,b:0};
+      bx.forEach(function(c){CH.forEach(function(ch){if(c[ch]<mn[ch])mn[ch]=c[ch];if(c[ch]>mx[ch])mx[ch]=c[ch]})});
+      CH.forEach(function(ch){if(mx[ch]-mn[ch]>bro){bro=mx[ch]-mn[ch];bi=i;bch=ch}})});
+    if(bi<0)break;
+    var bx=boxes[bi].slice().sort(function(a,b){return a[bch]-b[bch]}),tot=0;bx.forEach(function(c){tot+=c.n});
+    var acc=0,cut=1;for(var q=0;q<bx.length-1;q++){acc+=bx[q].n;cut=q+1;if(acc>=tot/2)break}
+    boxes.splice(bi,1,bx.slice(0,cut),bx.slice(cut));
+  }
+  return boxes.map(function(bx){var r=0,g=0,b=0,t=0;bx.forEach(function(c){r+=c.r*c.n;g+=c.g*c.n;b+=c.b*c.n;t+=c.n});return[Math.round(r/t),Math.round(g/t),Math.round(b/t)]});
+}
+function gifBytes(w,h,list,delayCs,pal){
+  var o=[];function w16(v){o.push(v&255,(v>>8)&255)}
+  "GIF89a".split("").forEach(function(c){o.push(c.charCodeAt(0))});
+  w16(w);w16(h);o.push(0xF7,0,0);
+  for(var i=0;i<256;i++){var c=pal[i]||[0,0,0];o.push(c[0],c[1],c[2])}
+  o.push(0x21,0xFF,11);"NETSCAPE2.0".split("").forEach(function(c){o.push(c.charCodeAt(0))});o.push(3,1,0,0,0);
+  list.forEach(function(ix){
+    o.push(0x21,0xF9,4,9);w16(delayCs);o.push(255,0);
+    o.push(0x2C);w16(0);w16(0);w16(w);w16(h);o.push(0,8);
+    var d=lzw(ix);
+    for(var i=0;i<d.length;i+=255){var n=Math.min(255,d.length-i);o.push(n);for(var j=0;j<n;j++)o.push(d[i+j])}
+    o.push(0);
+  });
+  o.push(0x3B);return new Uint8Array(o);
+}
+
+
+$("mk").addEventListener("click",async function(){
+  var btn=this;btn.disabled=true;busy=true;
+  var T=+$("T").value,FPS=20,n=Math.min(300,T*FPS),W=720,sc=W/W0,H=Math.round(H0*sc),oc=document.createElement("canvas");oc.width=W;oc.height=H;
+  var og=oc.getContext("2d",{willReadFrequently:true});
+  function render(f){og.setTransform(1,0,0,1,0,0);og.clearRect(0,0,W,H);og.setTransform(sc,0,0,sc,0,0);scene(og,f/FPS);return og.getImageData(0,0,W,H).data}
+  $("msg").textContent="색을 고르는 중…";await new Promise(function(r){setTimeout(r,0)});
+  var hist=new Map();
+  for(var s0=0;s0<8;s0++){var d0=render(Math.floor(s0*n/8));
+    for(var i0=0;i0<d0.length;i0+=8){if(d0[i0+3]<128)continue;var k0=(d0[i0]<<16)|(d0[i0+1]<<8)|d0[i0+2];hist.set(k0,(hist.get(k0)||0)+1)}}
+  var ent=[];hist.forEach(function(c,k){ent.push([k,c])});ent.sort(function(a,b){return b[1]-a[1]});
+  var pal=[],rest=new Map();
+  ent.forEach(function(e,qi){if(qi<100)pal.push([(e[0]>>16)&255,(e[0]>>8)&255,e[0]&255]);else rest.set(e[0],e[1])});
+  if(rest.size)pal=pal.concat(medianCut(rest,255-pal.length-2));
+  pal.push([255,255,255],[0,0,0]);
+  function nearest(r,g,b){var best=0,bd=1e9;for(var c=0;c<pal.length;c++){var dr=pal[c][0]-r,dg=pal[c][1]-g,db=pal[c][2]-b,d=dr*dr+dg*dg+db*db;if(d<bd){bd=d;best=c}}return best}
+  var lut=new Map(),list=[];
+  for(var f=0;f<n;f++){
+    var px=render(f),ix=new Uint8Array(W*H);
+    for(var i=0,j=0;i<px.length;i+=4,j++){
+      if(px[i+3]<128){ix[j]=255;continue}
+      var key=(px[i]<<16)|(px[i+1]<<8)|px[i+2],v=lut.get(key);
+      if(v===undefined){v=nearest(px[i],px[i+1],px[i+2]);lut.set(key,v)}
+      ix[j]=v}
+    list.push(ix);$("msg").textContent="만드는 중… "+Math.round((f+1)/n*100)+"%";
+    await new Promise(function(r){setTimeout(r,0)});
+  }
+  var bl=new Blob([gifBytes(W,H,list,5,pal)],{type:"image/gif"}),a=document.createElement("a");
+  a.href=URL.createObjectURL(bl);a.download="keyring.gif";document.body.appendChild(a);a.click();a.remove();
+  $("msg").textContent="저장 완료!";btn.disabled=false;busy=false;last=null;
+});
+</script></body></html>
